@@ -1,49 +1,27 @@
-node {
-  checkout scm
-  env.PATH = "${tool 'Maven3'}/bin:${env.PATH}"
-  stage('Package') {
-    dir('webapp') {
-      sh 'mvn clean package -DskipTests'
+pipeline {
+    agent {
+        docker {
+            image 'node:lts-buster-slim'
+            args '-p 3000:3000'
+        }
     }
-  }
-
-  stage('Create Docker Image') {
-    dir('webapp') {
-      docker.build("alexramos2007/docker-jenkins-pipeline:${env.BUILD_NUMBER}")
+    stages {
+        stage('Build') {
+            steps {
+                sh 'npm install'
+            }
+        }
+        stage('Test') {
+            steps {
+                sh './jenkins/scripts/test.sh'
+            }
+        }
+        stage('Deliver') { 
+            steps {
+                sh './jenkins/scripts/deliver.sh' 
+                input message: 'Finished using the web site? (Click "Proceed" to continue)' 
+                sh './jenkins/scripts/kill.sh' 
+            }
+        }
     }
-  }
-
-//  stage ('Run Application') {
-//    try {
-      //. Start database container here
-      //. sh 'docker run -d --name db -p 8091-8093:8091-8093 -p 11210:11210 alexramos2007/oreilly-couchbase:latest'
-
-      //. Run application using Docker image
-//      sh "DB=`docker inspect --format='{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' db`"
-//      sh "docker run -e DB_URI=$DB alexramos2007/docker-jenkins-pipeline:${env.BUILD_NUMBER}"
-
-      // Run tests using Maven
-      //dir ('webapp') {
-      //  sh 'mvn exec:java -DskipTests'
-      //}
-//    } catch (error) {
-//    } finally {
-      // Stop and remove database container here
-      //sh 'docker-compose stop db'
-      //sh 'docker-compose rm db'
-    }
-  }
-
-  stage('Run Tests') {
-    try {
-      dir('webapp') {
-        sh "mvn test"
-        docker.build("alexramos2007/docker-jenkins-pipeline:${env.BUILD_NUMBER}").push()
-      }
-    } catch (error) {
-
-    } finally {
-      junit '**/target/surefire-reports/*.xml'
-    }
-  }
 }
